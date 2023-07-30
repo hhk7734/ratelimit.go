@@ -3,6 +3,7 @@ package ratelimit
 import (
 	"context"
 	_ "embed"
+	"fmt"
 	"time"
 
 	"github.com/oklog/ulid/v2"
@@ -31,7 +32,8 @@ var slidingWindowLogLuaScript *redis.Script
 
 func (r *RedisRateLimit) SlidingWindowLog(ctx context.Context, key string, limit int,
 	window time.Duration) (int, time.Duration, error) {
-	ret, err := slidingWindowLogLuaScript.Run(ctx, r.client, []string{key},
+	ret, err := slidingWindowLogLuaScript.Run(ctx, r.client,
+		[]string{r.key(key)},
 		limit,
 		window.Milliseconds(),
 		time.Now().UnixMilli(),
@@ -48,4 +50,8 @@ func (r *RedisRateLimit) SlidingWindowLog(ctx context.Context, key string, limit
 	}
 
 	return remaining, reset, nil
+}
+
+func (*RedisRateLimit) key(key string) string {
+	return fmt.Sprintf("ratelimit:%s", key)
 }
