@@ -1,4 +1,4 @@
-package ratelimit
+package redis
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/hhk7734/ratelimit.go"
 	"github.com/oklog/ulid/v2"
 	"github.com/redis/go-redis/v9"
 )
@@ -14,15 +15,20 @@ func init() {
 	slidingWindowLogLuaScript = redis.NewScript(slidingWindowLogLua)
 }
 
-func NewRedisRateLimit(client *redis.Client) *RedisRateLimit {
-	return &RedisRateLimit{
+func Open(opt *redis.Options) *redisDriver {
+	client := redis.NewClient(opt)
+	return OpenWithClient(client)
+}
+
+func OpenWithClient(client *redis.Client) *redisDriver {
+	return &redisDriver{
 		client: client,
 	}
 }
 
-var _ RateLimit = (*RedisRateLimit)(nil)
+var _ ratelimit.Driver = new(redisDriver)
 
-type RedisRateLimit struct {
+type redisDriver struct {
 	client *redis.Client
 }
 
@@ -30,7 +36,7 @@ type RedisRateLimit struct {
 var slidingWindowLogLua string
 var slidingWindowLogLuaScript *redis.Script
 
-func (r *RedisRateLimit) SlidingWindowLog(ctx context.Context, key string, limit int,
+func (r *redisDriver) SlidingWindowLog(ctx context.Context, key string, limit int,
 	window time.Duration) (int, time.Duration, error) {
 	ret, err := slidingWindowLogLuaScript.Run(ctx, r.client,
 		[]string{r.key(key)},
@@ -46,12 +52,12 @@ func (r *RedisRateLimit) SlidingWindowLog(ctx context.Context, key string, limit
 	reset := time.Duration(ret[1]) * time.Millisecond
 
 	if remaining < 0 {
-		return 0, reset, ErrLimitExceeded
+		return 0, reset, ratelimit.ErrLimitExceeded
 	}
 
 	return remaining, reset, nil
 }
 
-func (*RedisRateLimit) key(key string) string {
+func (*redisDriver) key(key string) string {
 	return fmt.Sprintf("ratelimit:%s", key)
 }

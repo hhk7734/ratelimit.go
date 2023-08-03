@@ -1,25 +1,27 @@
-package ratelimit
+package memory
 
 import (
 	"context"
 	"sync"
 	"time"
+
+	"github.com/hhk7734/ratelimit.go"
 )
 
-func NewMemoryRateLimit() *MemoryRateLimit {
-	return &MemoryRateLimit{
+func Open() *memoryDriver {
+	return &memoryDriver{
 		store: make(map[string][]time.Time),
 	}
 }
 
-var _ RateLimit = (*MemoryRateLimit)(nil)
+var _ ratelimit.Driver = new(memoryDriver)
 
-type MemoryRateLimit struct {
+type memoryDriver struct {
 	mu    sync.Mutex
 	store map[string][]time.Time
 }
 
-func (r *MemoryRateLimit) SlidingWindowLog(ctx context.Context, key string, limit int, window time.Duration) (int, time.Duration, error) {
+func (r *memoryDriver) SlidingWindowLog(ctx context.Context, key string, limit int, window time.Duration) (int, time.Duration, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -37,7 +39,7 @@ func (r *MemoryRateLimit) SlidingWindowLog(ctx context.Context, key string, limi
 	prevCount := len(times)
 	if prevCount >= limit {
 		reset := window - now.Sub(times[0])
-		return 0, reset, ErrLimitExceeded
+		return 0, reset, ratelimit.ErrLimitExceeded
 	}
 
 	// add new

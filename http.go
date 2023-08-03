@@ -8,14 +8,14 @@ import (
 	"time"
 )
 
-func NewHttpRateLimit(ratelimit RateLimit) *HttpRateLimit {
+func NewHttpRateLimit(ratelimit *RateLimit) *HttpRateLimit {
 	return &HttpRateLimit{
 		ratelimit: ratelimit,
 	}
 }
 
 type HttpRateLimit struct {
-	ratelimit RateLimit
+	ratelimit *RateLimit
 }
 
 func (r *HttpRateLimit) SlidingWindowLog(ctx context.Context, w http.ResponseWriter, key string, limit int,
