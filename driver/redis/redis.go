@@ -15,30 +15,24 @@ func init() {
 	slidingWindowLogLuaScript = redis.NewScript(slidingWindowLogLua)
 }
 
-func Open(opt *redis.Options) *redisDriver {
+var _ ratelimit.Driver = new(Driver)
+
+type Driver struct {
+	Client *redis.Client
+}
+
+func Open(opt *redis.Options) *Driver {
 	client := redis.NewClient(opt)
-	return OpenWithClient(client)
-}
-
-func OpenWithClient(client *redis.Client) *redisDriver {
-	return &redisDriver{
-		client: client,
-	}
-}
-
-var _ ratelimit.Driver = new(redisDriver)
-
-type redisDriver struct {
-	client *redis.Client
+	return &Driver{Client: client}
 }
 
 //go:embed slidingwindolog.lua
 var slidingWindowLogLua string
 var slidingWindowLogLuaScript *redis.Script
 
-func (r *redisDriver) SlidingWindowLog(ctx context.Context, key string, limit int,
+func (r *Driver) SlidingWindowLog(ctx context.Context, key string, limit int,
 	window time.Duration) (int, time.Duration, error) {
-	ret, err := slidingWindowLogLuaScript.Run(ctx, r.client,
+	ret, err := slidingWindowLogLuaScript.Run(ctx, r.Client,
 		[]string{r.key(key)},
 		limit,
 		window.Milliseconds(),
@@ -58,6 +52,6 @@ func (r *redisDriver) SlidingWindowLog(ctx context.Context, key string, limit in
 	return remaining, reset, nil
 }
 
-func (*redisDriver) key(key string) string {
+func (*Driver) key(key string) string {
 	return fmt.Sprintf("ratelimit:%s", key)
 }

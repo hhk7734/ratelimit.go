@@ -8,26 +8,27 @@ import (
 	"github.com/hhk7734/ratelimit.go"
 )
 
-func Open() *memoryDriver {
-	return &memoryDriver{
-		store: make(map[string][]time.Time),
+var _ ratelimit.Driver = new(Driver)
+
+type Driver struct {
+	Store map[string][]time.Time
+
+	mu sync.Mutex
+}
+
+func Open() *Driver {
+	return &Driver{
+		Store: make(map[string][]time.Time),
 	}
 }
 
-var _ ratelimit.Driver = new(memoryDriver)
-
-type memoryDriver struct {
-	mu    sync.Mutex
-	store map[string][]time.Time
-}
-
-func (r *memoryDriver) SlidingWindowLog(ctx context.Context, key string, limit int, window time.Duration) (int, time.Duration, error) {
+func (r *Driver) SlidingWindowLog(ctx context.Context, key string, limit int, window time.Duration) (int, time.Duration, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	// remove expired
 	now := time.Now()
-	times := r.store[key]
+	times := r.Store[key]
 	for i := len(times) - 1; i >= 0; i-- {
 		if times[i].Before(now.Add(-window)) {
 			times = times[i+1:]
@@ -43,9 +44,9 @@ func (r *memoryDriver) SlidingWindowLog(ctx context.Context, key string, limit i
 	}
 
 	// add new
-	r.store[key] = append(times, now)
+	r.Store[key] = append(times, now)
 
 	remaining := limit - prevCount - 1
-	reset := window - now.Sub(r.store[key][0])
+	reset := window - now.Sub(r.Store[key][0])
 	return remaining, reset, nil
 }
